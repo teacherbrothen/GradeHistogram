@@ -20,16 +20,23 @@
     h1 { margin-bottom: 5px; color: #1e293b; }
     p.subtitle { color: #64748b; margin-top: 0; }
     
+    .drop-zones-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
     .drop-zone {
       border: 2px dashed #94a3b8;
       border-radius: 8px;
       background: #ffffff;
-      padding: 30px 20px;
+      padding: 20px 15px;
       text-align: center;
       cursor: pointer;
       transition: all 0.2s ease;
+      outline: none;
     }
-    .drop-zone:hover { border-color: #3b82f6; background: #eff6ff; }
+    .drop-zone:hover, .drop-zone.active-target { border-color: #3b82f6; background: #eff6ff; }
     
     .grid {
       display: grid;
@@ -73,8 +80,9 @@
     .stat-label { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600; }
     .stat-val { font-size: 22px; font-weight: bold; color: #0f172a; margin-top: 4px; }
 
-    #status {
-      margin-top: 8px;
+    .status {
+      margin-top: 6px;
+      font-size: 13px;
       font-weight: 600;
       color: #2563eb;
     }
@@ -86,17 +94,17 @@
       cursor: pointer;
     }
     .preview-box {
-      margin-top: 15px;
+      margin-top: 10px;
       display: none;
       text-align: center;
     }
     .preview-box img {
-      max-height: 120px;
+      max-height: 80px;
       border: 1px solid #cbd5e1;
       border-radius: 4px;
     }
 
-    /* Bin Toggle Controls */
+    /* Bin & Pool Toggle Controls */
     .chart-header {
       display: flex;
       justify-content: space-between;
@@ -119,7 +127,7 @@
     .btn-toggle {
       border: none;
       background: transparent;
-      padding: 4px 12px;
+      padding: 4px 10px;
       font-size: 12px;
       font-weight: 600;
       color: #64748b;
@@ -132,26 +140,63 @@
       color: #1e293b;
       box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
+    .pool-controls {
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f8fafc;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+    }
+    .pool-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+    }
   </style>
 </head>
 <body>
 
   <h1>Grade Scanner & Analyzer</h1>
-  <p class="subtitle">Paste (Ctrl+V) or upload a PowerTeacher column screenshot.</p>
+  <p class="subtitle">Upload, drop, or paste (Ctrl+V) screenshots into Pool 1 or Pool 2.</p>
 
-  <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-    <input type="file" id="fileInput" accept="image/*" style="display:none">
-    <strong>Click to browse, drag an image here, or press Ctrl+V to paste</strong>
-    <div id="status"></div>
-    <div class="preview-box" id="previewBox">
-      <img id="imgPreview" alt="Screenshot preview">
+  <div class="drop-zones-container">
+    <!-- Drop Zone 1 -->
+    <div class="drop-zone active-target" id="dropZone1" tabindex="0" onclick="document.getElementById('fileInput1').click()">
+      <input type="file" id="fileInput1" accept="image/*" style="display:none">
+      <strong>📁 Pool 1 Drop Zone</strong><br><span style="font-size:12px; color:#64748b;">Click, drop, or paste here</span>
+      <div class="status" id="status1"></div>
+      <div class="preview-box" id="previewBox1">
+        <img id="imgPreview1" alt="Pool 1 preview">
+      </div>
+    </div>
+
+    <!-- Drop Zone 2 -->
+    <div class="drop-zone" id="dropZone2" tabindex="0" onclick="document.getElementById('fileInput2').click()">
+      <input type="file" id="fileInput2" accept="image/*" style="display:none">
+      <strong>📁 Pool 2 Drop Zone</strong><br><span style="font-size:12px; color:#64748b;">Click, drop, or paste here</span>
+      <div class="status" id="status2"></div>
+      <div class="preview-box" id="previewBox2">
+        <img id="imgPreview2" alt="Pool 2 preview">
+      </div>
     </div>
   </div>
 
   <div class="grid">
     <!-- Left: Score Input & Options -->
     <div class="card">
-      <h3 style="margin-top:0;">Detected Scores</h3>
+      <div class="pool-controls">
+        <span class="pool-label">View Pool:</span>
+        <div class="btn-group">
+          <button type="button" class="btn-toggle active" id="pool1Btn" onclick="setActivePool('pool1')">Pool 1</button>
+          <button type="button" class="btn-toggle" id="pool2Btn" onclick="setActivePool('pool2')">Pool 2</button>
+          <button type="button" class="btn-toggle" id="poolBothBtn" onclick="setActivePool('both')">Both</button>
+        </div>
+      </div>
+
+      <h3 style="margin-top:0;" id="textAreaTitle">Detected Scores (Pool 1)</h3>
       <p style="font-size: 12px; color: #64748b; margin-top: -5px;">
         Editable list (one number per line):
       </p>
@@ -192,7 +237,7 @@
       </div>
 
       <div class="chart-header">
-        <span class="chart-title">Grade Distribution</span>
+        <span class="chart-title" id="chartTitle">Grade Distribution (Pool 1)</span>
         <div class="btn-group">
           <button type="button" class="btn-toggle active" id="bin10Btn" onclick="setBinSize(10)">10% Bins</button>
           <button type="button" class="btn-toggle" id="bin5Btn" onclick="setBinSize(5)">5% Bins</button>
@@ -204,18 +249,62 @@
   </div>
 
   <script>
-    const fileInput = document.getElementById('fileInput');
-    const dropZone = document.getElementById('dropZone');
-    const statusText = document.getElementById('status');
+    const poolData = {
+      pool1: [],
+      pool2: []
+    };
+
+    let activePool = 'pool1'; 
+    let currentBinSize = 10;
+    let chartInstance = null;
+    let isProgrammaticChange = false; 
+    let lastActiveDropZone = 1; // Tracks which pool receives pasted images by default
+
     const gradesList = document.getElementById('gradesList');
     const ignoreZerosBox = document.getElementById('ignoreZeros');
-    const previewBox = document.getElementById('previewBox');
-    const imgPreview = document.getElementById('imgPreview');
+    const textAreaTitle = document.getElementById('textAreaTitle');
+    const chartTitle = document.getElementById('chartTitle');
+    
+    const pool1Btn = document.getElementById('pool1Btn');
+    const pool2Btn = document.getElementById('pool2Btn');
+    const poolBothBtn = document.getElementById('poolBothBtn');
     const bin10Btn = document.getElementById('bin10Btn');
     const bin5Btn = document.getElementById('bin5Btn');
 
-    let currentBinSize = 10;
-    let chartInstance = null;
+    function setActivePool(pool) {
+      activePool = pool;
+      [pool1Btn, pool2Btn, poolBothBtn].forEach(b => b.classList.remove('active'));
+      if (pool === 'pool1') pool1Btn.classList.add('active');
+      if (pool === 'pool2') pool2Btn.classList.add('active');
+      if (pool === 'both') poolBothBtn.classList.add('active');
+
+      if (pool === 'both') {
+        textAreaTitle.textContent = 'Combined Scores (Read-Only View)';
+        chartTitle.textContent = 'Grade Distribution (Both Pools)';
+        gradesList.readOnly = true;
+        gradesList.style.background = '#f1f5f9';
+      } else {
+        textAreaTitle.textContent = `Detected Scores (${pool === 'pool1' ? 'Pool 1' : 'Pool 2'})`;
+        chartTitle.textContent = `Grade Distribution (${pool === 'pool1' ? 'Pool 1' : 'Pool 2'})`;
+        gradesList.readOnly = false;
+        gradesList.style.background = '#ffffff';
+      }
+
+      loadPoolIntoTextarea();
+      updateAnalysis();
+    }
+
+    function loadPoolIntoTextarea() {
+      isProgrammaticChange = true;
+      if (activePool === 'pool1') {
+        gradesList.value = poolData.pool1.join('\n');
+      } else if (activePool === 'pool2') {
+        gradesList.value = poolData.pool2.join('\n');
+      } else {
+        gradesList.value = [...poolData.pool1, ...poolData.pool2].join('\n');
+      }
+      isProgrammaticChange = false;
+    }
 
     function setBinSize(size) {
       currentBinSize = size;
@@ -229,26 +318,52 @@
       updateAnalysis();
     }
 
-    // Paste, Drag & Drop, File Picker Handlers
+    // Global Paste Listener (targets the last focused drop zone)
     window.addEventListener('paste', e => {
       const file = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'))?.getAsFile();
-      if (file) processImage(file);
+      if (file) {
+        e.preventDefault();
+        triggerProcessForPool(lastActiveDropZone, file);
+      }
     });
 
-    fileInput.addEventListener('change', e => {
-      if (e.target.files.length) processImage(e.target.files[0]);
-    });
+    setupDropZone(1);
+    setupDropZone(2);
 
-    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = '#2563eb'; });
-    dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#94a3b8'; });
-    dropZone.addEventListener('drop', e => {
-      e.preventDefault();
-      dropZone.style.borderColor = '#94a3b8';
-      if (e.dataTransfer.files.length) processImage(e.dataTransfer.files[0]);
-    });
+    function setupDropZone(id) {
+      const dropZone = document.getElementById(`dropZone${id}`);
+      const fileInput = document.getElementById(`fileInput${id}`);
 
-    // Image Preprocessing: 3.5x scale and binarize
-    function preprocessImage(file) {
+      // Track focus/clicks to know which pool to paste into
+      dropZone.addEventListener('click', () => setTargetPool(id));
+      dropZone.addEventListener('focus', () => setTargetPool(id));
+
+      fileInput.addEventListener('change', e => {
+        if (e.target.files.length) triggerProcessForPool(id, e.target.files[0]);
+      });
+
+      dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = '#2563eb'; });
+      dropZone.addEventListener('dragleave', () => { 
+        if (lastActiveDropZone !== id) dropZone.style.borderColor = '#94a3b8'; 
+      });
+      dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#94a3b8';
+        if (e.dataTransfer.files.length) {
+          setTargetPool(id);
+          triggerProcessForPool(id, e.dataTransfer.files[0]);
+        }
+      });
+    }
+
+    function setTargetPool(id) {
+      lastActiveDropZone = id;
+      document.getElementById('dropZone1').classList.remove('active-target');
+      document.getElementById('dropZone2').classList.remove('active-target');
+      document.getElementById(`dropZone${id}`).classList.add('active-target');
+    }
+
+    function preprocessImage(file, imgPreview, previewBox) {
       return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
@@ -279,10 +394,15 @@
       });
     }
 
-    async function processImage(imageFile) {
-      statusText.textContent = "Enhancing & scanning image...";
+    async function triggerProcessForPool(poolNum, imageFile) {
+      setTargetPool(poolNum);
+      const statusText = document.getElementById(`status${poolNum}`);
+      const previewBox = document.getElementById(`previewBox${poolNum}`);
+      const imgPreview = document.getElementById(`imgPreview${poolNum}`);
+
+      statusText.textContent = "Scanning...";
       try {
-        const processedDataUrl = await preprocessImage(imageFile);
+        const processedDataUrl = await preprocessImage(imageFile, imgPreview, previewBox);
 
         const worker = await Tesseract.createWorker('eng');
         await worker.setParameters({
@@ -302,21 +422,52 @@
           }
         }
 
-        gradesList.value = numbers.join('\n');
-        statusText.textContent = `Successfully extracted ${numbers.length} values!`;
-        updateAnalysis();
+        if (poolNum === 1) {
+          poolData.pool1 = numbers;
+        } else {
+          poolData.pool2 = numbers;
+        }
+
+        statusText.textContent = `${numbers.length} values found!`;
+        
+        if (activePool === `pool${poolNum}` || activePool === 'both') {
+          loadPoolIntoTextarea();
+          updateAnalysis();
+        }
       } catch (err) {
         console.error(err);
-        statusText.textContent = "OCR failed. Please check the image.";
+        statusText.textContent = "OCR failed.";
       }
     }
 
-    function updateAnalysis() {
-      let scores = gradesList.value
+    gradesList.addEventListener('input', () => {
+      if (isProgrammaticChange || activePool === 'both') return;
+      
+      const scores = gradesList.value
         .split('\n')
         .map(s => s.trim())
         .filter(s => s !== '' && !isNaN(s))
         .map(Number);
+
+      if (activePool === 'pool1') {
+        poolData.pool1 = scores;
+      } else {
+        poolData.pool2 = scores;
+      }
+      updateAnalysis();
+    });
+
+    ignoreZerosBox.addEventListener('change', updateAnalysis);
+
+    function updateAnalysis() {
+      let scores = [];
+      if (activePool === 'pool1') {
+        scores = [...poolData.pool1];
+      } else if (activePool === 'pool2') {
+        scores = [...poolData.pool2];
+      } else {
+        scores = [...poolData.pool1, ...poolData.pool2];
+      }
 
       if (ignoreZerosBox.checked) {
         scores = scores.filter(x => x > 0);
@@ -423,9 +574,6 @@
         }
       });
     }
-
-    gradesList.addEventListener('input', updateAnalysis);
-    ignoreZerosBox.addEventListener('change', updateAnalysis);
   </script>
 </body>
 </html>
